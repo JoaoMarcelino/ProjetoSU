@@ -23,11 +23,18 @@ from shapely.geometry import MultiPoint,Point
 #import rasterio
 #import rasterstats
 
+def reorderDataframeIndex(df):
+    df=df.reset_index()
+    df=df.drop(columns=['index'])
+    return df
+
 def filterDataFrameByArea(dataframe,minX,minY,maxX,maxY):
     dataframe=dataframe[dataframe.X>minX]
     dataframe=dataframe[dataframe.Y>minY]
     dataframe=dataframe[dataframe.X<maxX]
     dataframe=dataframe[dataframe.Y<maxY]
+
+    dataframe=reorderDataframeIndex(dataframe)
     return dataframe
 
 def taxonomy():
@@ -40,103 +47,121 @@ def taxonomy():
 
     return dicti
 
+#dataframe:   dataframe
+#taxonomy:  function that returns dictionary ex.: {'class1':['subclass1','subclass2'],'class2':['subclass1']}
+#splitedDf:   dictionary of dataframes dataframe
 def splitDataframByTaxonomy(dataframe,taxonomy):
-    splitedPois={}
-    for poiClass in taxonomy().keys():
-        df = pd.DataFrame(columns=['X', 'Y','className'])
-        subclasses=taxonomy()[poiClass]
+    splitedDf={}
+    for className in taxonomy().keys():
+        df = pd.DataFrame(columns=['X', 'Y','category'])
+        subclasses=taxonomy()[className]
         for subclass in subclasses:
-            rows=poisCoimbra.loc[poisCoimbra.fclass==subclass].copy()
-            rows.loc[:,'className']=poiClass
+            rows=dataframe.loc[dataframe.fclass==subclass].copy()
+            rows.loc[:,'category']=className
             df=pd.concat([df,rows])
-        splitedPois[poiClass]=df
-    return splitedPois
 
-def get_centermost_point(cluster):
-    centroid = (MultiPoint(cluster).centroid.x, MultiPoint(cluster).centroid.y)
+        df=reorderDataframeIndex(df)
+        splitedDf[className]=df
+
+    
+    return splitedDf
+
+#cluster:   list    ex.:["Column1","Column2"]
+#centroid:  dataframe
+def deleteColumns(df,columns):
+    return df.drop(columns=columns)
+
+#df:   dataframe
+#column:  int
+def getUniqueValuesColumn(df,column):
+    values=[]
+    for i in range(len(df)):
+        value=df.iloc[i,column]
+        if value not in values:
+            values.append(value)
+
+#cluster:   list    ex.:[[x,y],[x,y]]
+#centroid:  list    ex.:[x,y]  
+def getCentroid(cluster): 
+    centroid = [MultiPoint(cluster).centroid.x, MultiPoint(cluster).centroid.y]
     return centroid
 
+#df: dataframe with GIS columns X and Y 
+#labeledPoints: list with numeric labels same size as initial number of rows [1,0,1,1,1,0,3,-1] -1 means outlier
+#uniqueClusterLabels: unique set of numeric cluster labels  {1,2,3,4}
+def dbScanOverDataframe(df,epsilonKm,minSamples):
+    coords = df.loc[:,('X', 'Y')].to_numpy()
+    coords=coords.astype(float)
+    
+    kms_per_radian = 6371.0088
+    epsilon = epsilonKm / kms_per_radian
+    
+    #dbscan  
+    db = DBSCAN(eps=epsilon, min_samples=minSamples, algorithm='ball_tree', metric='haversine').fit(np.radians(coords))
+    
+    labeledPoints =db.labels_
+    uniqueClusterLabels = set(labeledPoints)
 
+    clustersDf = pd.DataFrame(columns=['X', 'Y','clusterID','nPoints'])
+    for label in uniqueClusterLabels:
+        if label==-1: #outliers are marked with clusterID=-1
+            continue
+        else:
+            cds=coords[labeledPoints==label]
+            centroid=getCentroid(cds)
+            newDF=pd.DataFrame([[centroid[0],centroid[1],label,len(cds)]],columns=['X', 'Y','clusterID','nPoints'])
+            clustersDf=pd.concat([clustersDf,newDF])
+
+    df['clusterID']=labeledPoints.tolist()
+    clustersDf=reorderDataframeIndex(clustersDf)
+    return df,labeledPoints,uniqueClusterLabels,clustersDf
+    
+#df: dataframe with GIS columns X and Y
+def writeDataFramToGis(df,targetFile):
+    os.makedirs(os.path.dirname(targetFile), exist_ok=True)
+
+    df=reorderDataframeIndex(df)
+    df['geometry']= df.apply(lambda x: Point(float(x['X']),float(x['Y'])), axis=1)
+    
+    df = gpd.GeoDataFrame(df, geometry='geometry')
+    df.crs= "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    df.to_file(targetFile, driver='ESRI Shapefile')
+    
+    
 if __name__=='__main__':
     minX=-8.44896
     minY=40.17894
     maxX=-8.38804
     maxY=40.22520
 
+    epsilonKm=0.2
+    minPoints=1
+
     poisFilename='./datasets/pois/pois.csv'
     pois=pd.read_csv(poisFilename)
     poisCoimbra=filterDataFrameByArea(pois, minX, minY, maxX, maxY)
-    poisCoimbra=poisCoimbra.drop(columns=['osm_id','lastchange','code','name' ])
+    poisCoimbra=deleteColumns(poisCoimbra,['osm_id','lastchange','code','name' ])
 
-    classes=[]
-    for i in range(len(poisCoimbra)):
-        poiClass=poisCoimbra.iloc[i,2]
-        if poiClass not in classes:
-            classes.append(poiClass)
+    
 
+    classes=getUniqueValuesColumn(poisCoimbra, 2)
     splitedPois=splitDataframByTaxonomy(poisCoimbra, taxonomy)
-    clustersAllPOIS={}
+
+    
+    allClusters={}
     for category in taxonomy().keys():
-        epsilonKm=0.5
-        minSamples=2
+        splitedPois[category],_,_,clusters=dbScanOverDataframe(splitedPois[category], epsilonKm, minPoints)
+        allClusters[category]=clusters
+
+    for category in taxonomy().keys():
         df=splitedPois[category]
-        coords = df.loc[:,('X', 'Y')].to_numpy()
-        coords=coords.astype(float)
+        pointsPath="./datasets/pois/{}/points/points.shp".format(category)
+        writeDataFramToGis(df, pointsPath)
 
-        #dbscan
-        kms_per_radian = 6371.0088
-        epsilon = epsilonKm / kms_per_radian  
-        db = DBSCAN(eps=epsilon, min_samples=minSamples, algorithm='ball_tree', metric='haversine').fit(np.radians(coords))
+        df=allClusters[category]
+        clustersPath="./datasets/pois/{}/clusters/clusters.shp".format(category)
+        writeDataFramToGis(df, clustersPath)
         
-        cluster_labels =db.labels_
-        uniqueCluster_labels = set(cluster_labels)
-
-        #get centroids for each cluster for each category
-        clustersDf = pd.DataFrame(columns=['X', 'Y','className','clusterID','nPoints'])
-        clusters={}
-        for cluster_label in uniqueCluster_labels:
-            if cluster_label==-1: #outliers are marked with clusterID=-1
-                continue
-            else:
-                clusters[cluster_label]=coords[cluster_labels==cluster_label]
-                centroid=get_centermost_point(clusters[cluster_label])
-                row={'X':[centroid[0]],'Y':[centroid[1]],'className':[category],'clusterID':[cluster_label],'nPoints':[len(clusters[cluster_label])]}
-                newDF=pd.DataFrame(data=row)
-                clustersDf=pd.concat([clustersDf,newDF])
-
-        clustersAllPOIS[category]=clustersDf
-
-    for category in taxonomy().keys():
-        points=splitedPois[category]
-        clusters=clustersAllPOIS[category]
-
-        points['geometry']=None
-        points=points.reset_index()
-        points=points.drop(columns=['index'])
-        for i in range(len(points)):
-            x=points.iloc[i,0]
-            y=points.iloc[i,1]
-            points.loc[i,"geometry"]=Point(float(x),float(y))
-
-        clusters['geometry']=None
-        clusters=clusters.reset_index()
-        clusters=clusters.drop(columns=['index'])
-        for i in range(len(clusters)):
-            x=clusters.iloc[i,0]
-            y=clusters.iloc[i,1]
-            clusters.loc[i,"geometry"]=Point(float(x),float(y))
-
-        points = gpd.GeoDataFrame(points, geometry='geometry')
-        clusters = gpd.GeoDataFrame(clusters, geometry='geometry')
-        points.crs= "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-        clusters.crs= "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-        try:
-            os.mkdir("./datasets/pois/{}".format(category))
-        except:
-            pass
-        points.to_file("./datasets/pois/{}/points.shp".format(category), driver='ESRI Shapefile')
-        clusters.to_file("./datasets/pois/{}/clusters.shp".format(category), driver='ESRI Shapefile')
-
 
     
 
