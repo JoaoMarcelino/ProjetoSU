@@ -1,0 +1,16 @@
+numpy
+pandas
+scipy
+matplotlib
+scikit-learn
+networkx
+bokeh
+statsmodels
+pyspark
+geopandas
+cartopy
+geoplot
+osmnx
+folium
+rasterio
+rasterstats
