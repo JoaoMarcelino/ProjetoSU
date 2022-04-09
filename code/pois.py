@@ -10,7 +10,6 @@ from sklearn.cluster import DBSCAN
 from geopy.distance import great_circle
 from shapely.geometry import MultiPoint,Point
 
-
 #import pysal
 #import bokeh
 #import cartopy
@@ -51,6 +50,7 @@ def taxonomy():
 #taxonomy:  function that returns dictionary ex.: {'class1':['subclass1','subclass2'],'class2':['subclass1']}
 #splitedDf:   dictionary of dataframes dataframe
 def splitDataframByTaxonomy(dataframe,taxonomy):
+
     splitedDf={}
     for className in taxonomy().keys():
         df = pd.DataFrame(columns=['X', 'Y','category'])
@@ -90,6 +90,9 @@ def getCentroid(cluster):
 #labeledPoints: list with numeric labels same size as initial number of rows [1,0,1,1,1,0,3,-1] -1 means outlier
 #uniqueClusterLabels: unique set of numeric cluster labels  {1,2,3,4}
 def dbScanOverDataframe(df,epsilonKm,minSamples):
+    if len(df)==0:
+        raise ValueError('Empty Dataframe')
+        
     coords = df.loc[:,('X', 'Y')].to_numpy()
     coords=coords.astype(float)
     
@@ -118,6 +121,8 @@ def dbScanOverDataframe(df,epsilonKm,minSamples):
     
 #df: dataframe with GIS columns X and Y
 def writeDataFramToGis(df,targetFile):
+    if len(df)==0:
+        return 
     os.makedirs(os.path.dirname(targetFile), exist_ok=True)
 
     df=reorderDataframeIndex(df)
@@ -135,7 +140,7 @@ if __name__=='__main__':
     maxY=40.22520
 
     epsilonKm=0.2
-    minPoints=1
+    minPoints=3
 
     poisFilename='./datasets/pois/pois.csv'
     pois=pd.read_csv(poisFilename)
@@ -152,6 +157,7 @@ if __name__=='__main__':
     for category in taxonomy().keys():
         splitedPois[category],_,_,clusters=dbScanOverDataframe(splitedPois[category], epsilonKm, minPoints)
         allClusters[category]=clusters
+        print(clusters)
 
     for category in taxonomy().keys():
         df=splitedPois[category]
