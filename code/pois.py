@@ -148,7 +148,6 @@ if __name__=='__main__':
     poisCoimbra=deleteColumns(poisCoimbra,['osm_id','lastchange','code','name' ])
 
     
-
     classes=getUniqueValuesColumn(poisCoimbra, 2)
     splitedPois=splitDataframByTaxonomy(poisCoimbra, taxonomy)
 
