@@ -15,13 +15,6 @@ def writeGeoDFToGis(geodf,targetFile):
 
     geodf.to_file(targetFile, driver='ESRI Shapefile')
 
-def readGEODFToGis(targetFile,bbox=False):
-    if bbox!=False:
-        gdf = gpd.read_file(targetFile,bbox=bbox)
-        return gdf
-    else:
-        gdf=gpd.read_file(targetFile)
-        return gdf
 
 if __name__=='__main__':
     minX=-8.44896
@@ -37,7 +30,6 @@ if __name__=='__main__':
 
     build = gpd.read_file(buildingsFileName,bbox=bbox)
     pois=gpd.read_file(poisFileName)
-
     build=build.to_crs(epsg=3857)
     pois=pois.to_crs(epsg=3857)
     #print(build.crs)
