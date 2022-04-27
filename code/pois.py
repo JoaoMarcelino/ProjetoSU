@@ -273,8 +273,27 @@ def main1(): #split datatset of POIS into large categories and cluster each cate
         clustersPath="./datasets/pois/{}/clusters/clusters.shp".format(category)
         writeDataFramToGis(df, clustersPath)
 
+def main2():#cluster comercio pois with dbscan
+    minX=-8.44896
+    minY=40.17894
+    maxX=-8.38804
+    maxY=40.22520
+    epsilon=400
+    nPoints=3
+    ficheiroComercio="./datasets/pois/comercio/points/points.shp"
+    ficheiroComercioPois="./datasets/pois/testesClustering/DBSCAN400.shp"
+    ficheiroComercioClusters="./datasets/pois/testesClustering/clustersDBSCAN400.shp"
+
+    poisComercio=readGEODFToGis(ficheiroComercio)
+    poisComercio=poisComercio.to_crs(epsg=3857)
+
+    poisComercio,_,_,clusters=dbScanGeoDataframe(poisComercio, epsilon, nPoints)
+
+    writeGeoDFToGis(poisComercio, ficheiroComercioPois)
+    writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
 
 if __name__=='__main__':
+    """
     minX=-8.44896
     minY=40.17894
     maxX=-8.38804
@@ -315,7 +334,8 @@ if __name__=='__main__':
 
         writeGeoDFToGis(poisComercio, ficheiroComercioPois)
         writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
-
+    """
+    main2()
     
 
     
