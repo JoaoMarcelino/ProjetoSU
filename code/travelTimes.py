@@ -37,12 +37,12 @@ def main():
     
     walkingMetersPerMinute=0.085*1000
     busMetersPerMinute=0.33*1000
-    squareWidth=50
+    squareWidth=250
 
     buildingsFileName="./datasets/buildings/hotosm_prt_buildings_polygons.shp"
     clustersFileName="./datasets/pois/comercio/final/clustersDBSCAN400.shp"
     stopsFilename="./datasets/bus/stops.shp"
-    newbuildingsFileName="./datasets/buildings/travelTimes/buildings.shp"
+    newbuildingsFileName="./datasets/buildings/travelTimes/buildings2.shp"
 
     buildings = gpd.read_file(buildingsFileName,bbox=bbox)
     clusters=gpd.read_file(clustersFileName)
@@ -62,13 +62,10 @@ def main():
         while y<4900545.5:
             square=Polygon([(x,y),(x+squareWidth,y),(x+squareWidth,y+squareWidth),(x,y+squareWidth)])
             centerPoint=square.centroid
-            nearestStop=get_nearest_values(centerPoint, busStops)
-            nearestCluster=get_nearest_values(nearestStop, clusters)
+            nearestCluster=get_nearest_values(centerPoint, clusters)
+            timeToCluster=centerPoint.distance(nearestCluster)/busMetersPerMinute
 
-            timeToBus=centerPoint.distance(nearestStop)/walkingMetersPerMinute
-            timeToCluster=nearestStop.distance(nearestCluster)/busMetersPerMinute
-
-            aux = { 'geometry': [square],'time': [timeToBus+timeToCluster],'busTime':[timeToCluster],'walkTime':[timeToBus]}
+            aux = { 'geometry': [square],'time': [timeToCluster],'busTime':[timeToCluster],'walkTime':[None]}
             squareRow = gpd.GeoDataFrame(aux, crs="EPSG:3857")
             squares=pd.concat([squares,squareRow])
             #print("{} {}".format(timeToBus,timeToCluster))
