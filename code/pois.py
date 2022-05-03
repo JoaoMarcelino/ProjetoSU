@@ -215,6 +215,7 @@ def KMeansGeoDataframe(gdf,nClusters):
 #df: dataframe with GIS columns X and Y
 def writeDataFramToGis(df,targetFile,crs):
     if len(df)==0:
+        print("here")
         return 
     os.makedirs(os.path.dirname(targetFile), exist_ok=True)
 
@@ -273,24 +274,26 @@ def main1(): #split datatset of POIS into large categories and cluster each cate
         clustersPath="./datasets/pois/{}/clusters/clusters.shp".format(category)
         writeDataFramToGis(df, clustersPath)
 
-def main2():#cluster comercio pois with dbscan
+def main2(type):#cluster comercio pois with dbscan
     minX=-8.44896
     minY=40.17894
     maxX=-8.38804
     maxY=40.22520
     epsilon=400
-    nPoints=3
-    ficheiroComercio="./datasets/pois/comercio/points/points.shp"
-    ficheiroComercioPois="./datasets/pois/testesClustering/DBSCAN400.shp"
-    ficheiroComercioClusters="./datasets/pois/testesClustering/clustersDBSCAN400.shp"
+    nPoints=2
+    ficheiro=f"./datasets/pois/{type}/points/points.shp"
+    ficheiroPois=f"./datasets/pois/{type}/final/DBSCAN400.shp"
+    ficheiroClusters=f"./datasets/pois/{type}/final/clustersDBSCAN400.shp"
 
-    poisComercio=readGEODFToGis(ficheiroComercio)
-    poisComercio=poisComercio.to_crs(epsg=3857)
+    pois=readGEODFToGis(ficheiro)
+    pois=pois.to_crs(epsg=3857)
 
-    poisComercio,_,_,clusters=dbScanGeoDataframe(poisComercio, epsilon, nPoints)
+    pois,_,_,clusters=dbScanGeoDataframe(pois, epsilon, nPoints)
 
-    writeGeoDFToGis(poisComercio, ficheiroComercioPois)
-    writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
+    print(clusters)
+
+    writeGeoDFToGis(pois, ficheiroPois)
+    writeDataFramToGis(clusters, ficheiroClusters,"EPSG:3857")
 
 if __name__=='__main__':
     """
@@ -335,7 +338,11 @@ if __name__=='__main__':
         writeGeoDFToGis(poisComercio, ficheiroComercioPois)
         writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
     """
-    main2()
+
+    types = ["comercio", "educacao", "infraestrutura", "lazer", "saude"]
+    for type in types:
+        pass
+    main2("saude")
     
 
     
