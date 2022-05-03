@@ -26,7 +26,7 @@ if __name__=='__main__':
     bbox = (minX,minY,maxX,maxY)
 
     buildingsFileName="./datasets/buildings/hotosm_prt_buildings_polygons.shp"
-    poisFileName="./datasets/pois/comercio/points/points.shp"
+    poisFileName="./datasets/pois/testesClustering/DBSCAN400.shp"
 
     build = gpd.read_file(buildingsFileName,bbox=bbox)
     pois=gpd.read_file(poisFileName)

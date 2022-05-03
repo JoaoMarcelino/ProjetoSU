@@ -65,8 +65,8 @@ def getBuildings(type):
         while y<4900545.5:
             square=Polygon([(x,y),(x+squareWidth,y),(x+squareWidth,y+squareWidth),(x,y+squareWidth)])
             centerPoint=square.centroid
-            nearestStop=get_nearest_values(centerPoint, busStops)
-            nearestCluster=get_nearest_values(nearestStop, clusters)
+            nearestCluster=get_nearest_values(centerPoint, clusters)
+            timeToCluster=centerPoint.distance(nearestCluster)/busMetersPerMinute
 
             timeToBus=centerPoint.distance(nearestStop)/walkingMetersPerMinute
             timeToCluster=nearestStop.distance(nearestCluster)/busMetersPerMinute
