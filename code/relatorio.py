@@ -55,11 +55,14 @@ def main():
     poisClusters=readGeodatafromFile(clustersFile,bbox1,crs)
     clusters=readGeodatafromFile(centroidsFile,bbox1,crs)
 
-    test1=readGeodatafromFile("./datasets/pois/testesClustering/points6.shp",bbox1,crs)
-    test1Clusters=readGeodatafromFile("./datasets/pois/testesClustering/clusters6.shp",bbox1,crs)
+    test1=readGeodatafromFile("./datasets/pois/testesClustering/points4.shp",bbox1,crs)
+    test1Clusters=readGeodatafromFile("./datasets/pois/testesClustering/clusters4.shp",bbox1,crs)
     
     test2=readGeodatafromFile("./datasets/pois/testesClustering/points2.shp",bbox1,crs)
     test2Clusters=readGeodatafromFile("./datasets/pois/testesClustering/clusters2.shp",bbox1,crs)
+
+    test3=readGeodatafromFile("./datasets/pois/testesClustering/points3.shp",bbox1,crs)
+    test3Clusters=readGeodatafromFile("./datasets/pois/testesClustering/clusters3.shp",bbox1,crs)
     """
     axis=plotBaseMap()
     pois.plot(ax=axis,marker='.', color='green', markersize=70,label="POI")
@@ -94,8 +97,13 @@ def main():
     test2Clusters.plot(ax=axis, marker="*", markersize=150,color="Black",label='Centroid')
     plt.legend()
     plt.show()
-    
 
+    axis=plotBaseMap()
+    test3.plot(column='clusterID', ax=axis, marker='.', markersize=70, cmap='Set1',label='Point of Interest')
+    test3Clusters.plot(ax=axis, marker="*", markersize=150,color="Black",label='Centroid')
+    plt.legend()
+    plt.show()
+    
     classes=["comercio","educacao","infraestrutura","lazer","saude"]
     for name in classes:
         data=readGeodatafromFile("./datasets/pois/{}/points/points.shp".format(name),bbox,crs)
@@ -121,5 +129,12 @@ def main():
     
     print(len(stops))
     """
+    travelTimes=readGeodatafromFile("./datasets/buildings/travelTimes/buildings.shp",bbox1,crs)
+    travelTimes=travelTimes.loc[travelTimes['time']<10]
+    axis=plotBaseMap()
+    travelTimes.plot(column='time', ax=axis, cmap='afmhot',legend=True,alpha=0.6)
+    plt.legend()
+    plt.show()
+
 if __name__=="__main__":
     main()
