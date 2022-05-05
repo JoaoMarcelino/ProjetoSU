@@ -23,8 +23,10 @@ def readGeodatafromFile(targetFile,bbox=None,crs="EPSG:3857"):
     return data
 
 def plotBaseMap():
-    roadsFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/roads.shp"
-    waterFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/water.shp"
+    #roadsFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/roads.shp"
+    #waterFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/water.shp"
+    roadsFile="../DS01 QGISintro/portugal/roads.shp"
+    waterFile="../DS01 QGISintro/portugal/water.shp"
     bbox = (-8.44896,40.17894,-8.38804,40.22520)
     bbox1=(-942000.6,4891166.6,-933027.4,4900545.5)
     crs="EPSG:3857"
@@ -40,11 +42,55 @@ def plotBaseMap():
     ax.set_ylim(bbox1[1],bbox1[3])
     return ax
 
+
+def score():
+
+
+    bbox = (-8.44896,40.17894,-8.38804,40.22520)
+    bbox1=(-942000.6,4891166.6,-933027.4,4900545.5)
+    crs="EPSG:3857"
+
+    score2 = "./datasets/buildings/score/score2/"
+    score = "./datasets/buildings/score/score/"
+
+    path = "./datasets/pois/"
+    rest = "/final/clustersDBSCAN400.shp"
+    types =  ["comercio", "educacao", "infraestrutura", "lazer", "saude"]
+
+    axis=plotBaseMap()
+
+    comercio = readGeodatafromFile(score2 + "comercio.shp",bbox1,crs)
+    infraestrutura = readGeodatafromFile(score2 + "infraestrutura.shp",bbox1,crs)
+    educacao = readGeodatafromFile(score2 + "educacao.shp",bbox1,crs)
+    lazer = readGeodatafromFile(score2 + "lazer.shp",bbox1,crs)
+    saude = readGeodatafromFile(score2 + "saude.shp",bbox1,crs)
+
+    comercio.plot(ax=axis, color='green',label="Commerce",alpha=0.6)
+    infraestrutura.plot(ax=axis, color='red', label="Infraestructure",alpha=0.6)
+    educacao.plot(ax=axis, color='blue', label="Education",alpha=0.6 )
+    lazer.plot(ax=axis, color='yellow', label="Leisure" ,alpha=0.6)
+    saude.plot(ax=axis, color='purple', label="Health" ,alpha=0.6)
+
+    comercio = readGeodatafromFile(path + "comercio" + rest,bbox1,crs)
+    infraestrutura = readGeodatafromFile(path + "infraestrutura" + rest,bbox1,crs)
+    educacao = readGeodatafromFile(path + "educacao" + rest,bbox1,crs)
+    lazer = readGeodatafromFile(path + "lazer" + rest,bbox1,crs)
+    saude = readGeodatafromFile(path + "saude" + rest,bbox1,crs)
+
+    comercio.plot(ax=axis,marker='.', color='green', markersize=70, label="Commerce" ,alpha=1)
+    infraestrutura.plot(ax=axis,marker='.', color='red', markersize=70, label="Infraestructure" ,alpha=1)
+    educacao.plot(ax=axis,marker='.', color='blue', markersize=70,label="Education" ,alpha=1)
+    lazer.plot(ax=axis,marker='.', color='yellow', markersize=70,label="Leisure" ,alpha=1)
+    saude.plot(ax=axis,marker='.', color='purple', markersize=70,label="Health",alpha=1)
+
+    plt.legend(loc="upper right")
+    plt.show()
+
 def main():
     poisFile="./datasets/pois/pois.shp"
     poisComercioFile="./datasets/pois/comercio/points/points.shp"
-    clustersFile="C:/Users/franc/Desktop/SU/ProjetoSU/datasets/pois/testesClustering/DBSCAN400.shp"
-    centroidsFile="C:/Users/franc/Desktop/SU/ProjetoSU/datasets/pois/testesClustering/clustersDBSCAN400.shp"
+    clustersFile="./datasets/pois/testesClustering/DBSCAN400.shp"
+    centroidsFile="./datasets/pois/testesClustering/clustersDBSCAN400.shp"
     bbox = (-8.44896,40.17894,-8.38804,40.22520)
     bbox1=(-942000.6,4891166.6,-933027.4,4900545.5)
     crs="EPSG:3857"
@@ -137,4 +183,4 @@ def main():
     plt.show()
 
 if __name__=="__main__":
-    main()
+    score()
