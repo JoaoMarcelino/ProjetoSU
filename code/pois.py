@@ -1,246 +1,37 @@
-import numpy as np
-import pandas as pd
 import geopandas as gpd
-import scipy
-import shapely
 import matplotlib.pyplot as plt
 import os
-
 from sklearn.cluster import DBSCAN,AgglomerativeClustering,KMeans
-from geopy.distance import great_circle
-from shapely.geometry import MultiPoint,Point
+from shapely.geometry import *
+from utils import *
 
-#import pysal
-#import bokeh
-#import cartopy
-#import statsmodels
-#import sklearn
-#import geoplot
-#import osmnx
-#import folium
-#import dash
-#import rasterio
-#import rasterstats
-
-def reorderDataframeIndex(df):
-    df=df.reset_index()
-    df=df.drop(columns=['index'])
-    return df
-
-def filterDataFrameByArea(dataframe,minX,minY,maxX,maxY):
-    dataframe=dataframe[dataframe.X>minX]
-    dataframe=dataframe[dataframe.Y>minY]
-    dataframe=dataframe[dataframe.X<maxX]
-    dataframe=dataframe[dataframe.Y<maxY]
-
-    dataframe=reorderDataframeIndex(dataframe)
-    return dataframe
-
-def taxonomy():
-    dicti={}
-    dicti['infraestrutura']=['police','post_box','recycling','post_office','parking','telephone','post_office','fire_station','bank','fuel','information','toilet']
-    dicti['saude']=['pharmacy','hospital']
-    dicti['comercio']=['restaurant','cafe','pub','supermarket','fast_food','atm','bakery']
-    dicti['educacao']=['school','library','kindergarten']
-    dicti['lazer']=['theatre','museum','cinema','attraction','nightclub']
-
-    return dicti
 
 #dataframe:   dataframe
 #taxonomy:  function that returns dictionary ex.: {'class1':['subclass1','subclass2'],'class2':['subclass1']}
 #splitedDf:   dictionary of dataframes dataframe
-def splitDataframByTaxonomy(dataframe,taxonomy):
+def splitDataframByTaxonomy(geodf,taxonomy,categoryCol):
 
     splitedDf={}
-    for className in taxonomy().keys():
-        df = pd.DataFrame(columns=['X', 'Y','category'])
-        subclasses=taxonomy()[className]
-        for subclass in subclasses:
-            rows=dataframe.loc[dataframe.fclass==subclass].copy()
-            rows.loc[:,'category']=className
-            df=pd.concat([df,rows])
+    for category in taxonomy().keys():
+        subcategories=taxonomy()[category]
+        entries=geodf.loc[geodf[categoryCol].isin(subcategories)].copy()
+        splitedDf[category]=entries
 
-        df=reorderDataframeIndex(df)
-        splitedDf[className]=df
-
-    
     return splitedDf
 
-#cluster:   list    ex.:["Column1","Column2"]
-#centroid:  dataframe
-def deleteColumns(df,columns):
-    return df.drop(columns=columns)
-
-#df:   dataframe
-#column:  int
-def getUniqueValuesColumn(df,column):
-    values=[]
-    for i in range(len(df)):
-        value=df.iloc[i,column]
-        if value not in values:
-            values.append(value)
-
-#cluster:   list    ex.:[[x,y],[x,y]]
-#centroid:  list    ex.:[x,y]  
-def getCentroid(cluster): 
-    centroid = [MultiPoint(cluster).centroid.x, MultiPoint(cluster).centroid.y]
-    return centroid
-
-#df: dataframe with GIS columns X and Y 
-#labeledPoints: list with numeric labels same size as initial number of rows [1,0,1,1,1,0,3,-1] -1 means outlier
-#uniqueClusterLabels: unique set of numeric cluster labels  {1,2,3,4}
-def dbScanOverDataframe(df,epsilonKm,minSamples):
-    if len(df)==0:
-        raise ValueError('Empty Dataframe')
-        
-    coords = df.loc[:,('X', 'Y')].to_numpy()
-    coords=coords.astype(float)
-    
-    kms_per_radian = 6371.0088
-    epsilon = epsilonKm / kms_per_radian
-    
-    #dbscan  
-    db = DBSCAN(eps=epsilon, min_samples=minSamples, algorithm='ball_tree', metric='haversine').fit(np.radians(coords))
-    
-    labeledPoints =db.labels_
-    uniqueClusterLabels = set(labeledPoints)
-
-    clustersDf = pd.DataFrame(columns=['X', 'Y','clusterID','nPoints'])
-    for label in uniqueClusterLabels:
-        if label==-1: #outliers are marked with clusterID=-1
+def buidTaxonomy(categories,subcategories):
+    dicti={}
+    for subcategory in subcategories:
+        number=input("{}:".format(subcategory))
+        number=int(number)
+        if number==-1:
             continue
         else:
-            cds=coords[labeledPoints==label]
-            centroid=getCentroid(cds)
-            newDF=pd.DataFrame([[centroid[0],centroid[1],label,len(cds)]],columns=['X', 'Y','clusterID','nPoints'])
-            clustersDf=pd.concat([clustersDf,newDF])
-            
+            category=categories[number]
+            dicti[category]=dicti.get(category,[])+[subcategory]
+    return dicti
 
-    df['clusterID']=labeledPoints.tolist()
-    clustersDf=reorderDataframeIndex(clustersDf)
-    return df,labeledPoints,uniqueClusterLabels,clustersDf
-
-
-def dbScanGeoDataframe(gdf,epsilonKm,minSamples):
-    if len(gdf)==0:
-        raise ValueError('Empty GeoDataframe')
-        
-    coords = np.array([[p.x,p.y] for p in gdf.loc[:,('geometry')]])
-    
-    #dbscan  
-    db = DBSCAN(eps=epsilonKm, min_samples=minSamples).fit(coords)
-    
-    labeledPoints =db.labels_
-    uniqueClusterLabels = set(labeledPoints)
-
-    clustersDf = pd.DataFrame(columns=['X', 'Y','clusterID','nPoints'])
-    for label in uniqueClusterLabels:
-        if label==-1: #outliers are marked with clusterID=-1
-            continue
-        else:
-            cds=coords[labeledPoints==label]
-            centroid=getCentroid(cds)
-            newDF=pd.DataFrame([[centroid[0],centroid[1],label,len(cds)]],columns=['X', 'Y','clusterID','nPoints'])
-            clustersDf=pd.concat([clustersDf,newDF])
-            
-
-    gdf['clusterID']=labeledPoints.tolist()
-    clustersDf=reorderDataframeIndex(clustersDf)
-    return gdf,labeledPoints,uniqueClusterLabels,clustersDf
-
-def aglomerativeGeoDataframe(gdf,nClusters):
-    if len(gdf)==0:
-        raise ValueError('Empty GeoDataframe')
-    
-    coords = []
-    for geom in gdf.loc[:,('geometry')]:
-        x=geom.x
-        y=geom.y
-        coords.append([x,y])
-    coords=np.array(coords).astype(float)
-
-    #aglomerative clustering 
-    db = AgglomerativeClustering(n_clusters=nClusters).fit(coords)
-
-    labeledPoints =db.labels_
-    uniqueClusterLabels = set(labeledPoints)
-
-    clustersDf = pd.DataFrame(columns=['X', 'Y','clusterID','nPoints'])
-    for label in uniqueClusterLabels:
-        if label==-1: #outliers are marked with clusterID=-1
-            continue
-        else:
-            cds=coords[labeledPoints==label]
-            centroid=getCentroid(cds)
-            newDF=pd.DataFrame([[centroid[0],centroid[1],label,len(cds)]],columns=['X', 'Y','clusterID','nPoints'])
-            clustersDf=pd.concat([clustersDf,newDF])
-            
-
-    gdf['clusterID']=labeledPoints.tolist()
-    clustersDf=reorderDataframeIndex(clustersDf)
-    return gdf,labeledPoints,uniqueClusterLabels,clustersDf
-
-def KMeansGeoDataframe(gdf,nClusters):
-    if len(gdf)==0:
-        raise ValueError('Empty GeoDataframe')
-    
-    coords = []
-    for geom in gdf.loc[:,('geometry')]:
-        x=geom.x
-        y=geom.y
-        coords.append([x,y])
-    coords=np.array(coords).astype(float)
-
-    #aglomerative clustering 
-    db = KMeans(n_clusters=nClusters).fit(coords)
-
-    labeledPoints =db.labels_
-    uniqueClusterLabels = set(labeledPoints)
-
-    clustersDf = pd.DataFrame(columns=['X', 'Y','clusterID','nPoints'])
-    for label in uniqueClusterLabels:
-        if label==-1: #outliers are marked with clusterID=-1
-            continue
-        else:
-            cds=coords[labeledPoints==label]
-            centroid=getCentroid(cds)
-            newDF=pd.DataFrame([[centroid[0],centroid[1],label,len(cds)]],columns=['X', 'Y','clusterID','nPoints'])
-            clustersDf=pd.concat([clustersDf,newDF])
-            
-
-    gdf['clusterID']=labeledPoints.tolist()
-    clustersDf=reorderDataframeIndex(clustersDf)
-    return gdf,labeledPoints,uniqueClusterLabels,clustersDf
-
-#df: dataframe with GIS columns X and Y
-def writeDataFramToGis(df,targetFile,crs):
-    if len(df)==0:
-        print("here")
-        return 
-    os.makedirs(os.path.dirname(targetFile), exist_ok=True)
-
-    df=reorderDataframeIndex(df)
-    df['geometry']= df.apply(lambda x: Point(float(x['X']),float(x['Y'])), axis=1)
-    
-    df = gpd.GeoDataFrame(df, geometry='geometry')
-    df.crs= crs
-    df.to_file(targetFile, driver='ESRI Shapefile')
-
-def readGEODFToGis(targetFile,bbox=False):
-    if bbox!=False:
-        gdf = gpd.read_file(targetFile,bbox=bbox)
-        return gdf
-    else:
-        gdf=gpd.read_file(targetFile)
-        return gdf
-
-def writeGeoDFToGis(geodf,targetFile):
-    if len(geodf)==0:
-        return 
-    os.makedirs(os.path.dirname(targetFile), exist_ok=True)
-
-    geodf.to_file(targetFile, driver='ESRI Shapefile')
-def main1(): #split datatset of POIS into large categories and cluster each category with dbscan
+def main1():
     minX=-8.44896
     minY=40.17894
     maxX=-8.38804
@@ -274,77 +65,44 @@ def main1(): #split datatset of POIS into large categories and cluster each cate
         clustersPath="./datasets/pois/{}/clusters/clusters.shp".format(category)
         writeDataFramToGis(df, clustersPath)
 
-def main2(type):#cluster comercio pois with dbscan
-    minX=-8.44896
-    minY=40.17894
-    maxX=-8.38804
-    maxY=40.22520
-    epsilon=400
-    nPoints=2
-    ficheiro=f"./datasets/pois/{type}/points/points.shp"
-    ficheiroPois=f"./datasets/pois/{type}/final/DBSCAN400.shp"
-    ficheiroClusters=f"./datasets/pois/{type}/final/clustersDBSCAN400.shp"
+def main2():
 
-    pois=readGEODFToGis(ficheiro)
-    pois=pois.to_crs(epsg=3857)
+    bbox=(-9.50152,38.84014,-9.06988,38.67876)
+    bbox1=(-1057675,4675615,-1009567,4698915) #LX swag
+    crs="EPSG:3857"
+    #crs1="EPSG:4326"
 
-    pois,_,_,clusters=dbScanGeoDataframe(pois, epsilon, nPoints)
+    waterFileDir="../Dados/BaseLayer/water.shp"
+    roadsFileDir="../Dados/BaseLayer/roads.shp"
+    poisFileDir="./datasets/facebookPOIS/pois/pois.shp"
 
-    print(clusters)
-
-    writeGeoDFToGis(pois, ficheiroPois)
-    writeDataFramToGis(clusters, ficheiroClusters,"EPSG:3857")
-
-if __name__=='__main__':
+    pois=readGeodatafromFile(poisFileDir,bbox1,crs)
     """
-    minX=-8.44896
-    minY=40.17894
-    maxX=-8.38804
-    maxY=40.22520
+    ax=plotBaseMap(roadsFileDir, waterFileDir, bbox, bbox1,crs)
+    pois.plot(ax=ax, marker='.', markersize=20,color="#e8718d",alpha=0.6,label='Point of Interest')
+    plt.legend()
+    plt.show()
 
-    for i,epsilon in enumerate([200,300,500]):
-        ficheiroComercio="./datasets/pois/comercio/points/points.shp"
-        poisComercio=readGEODFToGis(ficheiroComercio)
-        poisComercio=poisComercio.to_crs(epsg=3857)
-
-        ficheiroComercioPois="./datasets/pois/testesClustering/points{}.shp".format(i)
-        ficheiroComercioClusters="./datasets/pois/testesClustering/clusters{}.shp".format(i)
-        poisComercio,_,_,clusters=dbScanGeoDataframe(poisComercio, epsilon, 3)
-
-        writeGeoDFToGis(poisComercio, ficheiroComercioPois)
-        writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
-
-    for i,nClusters in enumerate([5,10,20]):
-        ficheiroComercio="./datasets/pois/comercio/points/points.shp"
-        poisComercio=readGEODFToGis(ficheiroComercio)
-        poisComercio=poisComercio.to_crs(epsg=3857)
-
-        ficheiroComercioPois="./datasets/pois/testesClustering/points{}.shp".format(i+3)
-        ficheiroComercioClusters="./datasets/pois/testesClustering/clusters{}.shp".format(i+3)
-        poisComercio,_,_,clusters=aglomerativeGeoDataframe(poisComercio, nClusters)
-
-        writeGeoDFToGis(poisComercio, ficheiroComercioPois)
-        writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
-
-    for i,nClusters in enumerate([10]):
-        ficheiroComercio="./datasets/pois/comercio/points/points.shp"
-        poisComercio=readGEODFToGis(ficheiroComercio)
-        poisComercio=poisComercio.to_crs(epsg=3857)
-
-        ficheiroComercioPois="./datasets/pois/testesClustering/points{}.shp".format(i+6)
-        ficheiroComercioClusters="./datasets/pois/testesClustering/clusters{}.shp".format(i+6)
-        poisComercio,_,_,clusters=KMeansGeoDataframe(poisComercio, nClusters)
-
-        writeGeoDFToGis(poisComercio, ficheiroComercioPois)
-        writeDataFramToGis(clusters, ficheiroComercioClusters,"EPSG:3857")
-    """
-
-    types = ["comercio", "educacao", "infraestrutura", "lazer", "saude"]
-    for type in types:
-        pass
-    main2("saude")
+      
+    subcategories=getUniqueValuesColumn(pois, "macro_cate")
+    print(subcategories)
     
-
+    categories=["Lazer","Educacao","Saude","Comercio","Industria/Empresas","Utilitarios/Servicos","Turismo"]
+    taxonomy=buidTaxonomy(categories, subcategories)
+    print(taxonomy)
+       """
+    categories=taxonomy1()
+    print(categories)
+   
+    splittedPOIS=splitDataframByTaxonomy(pois, taxonomy1, "macro_cate")
+    for cat in categories:
+        geodf=splittedPOIS[cat]
+        fileDir="./datasets/facebookPOIS/pois/{}.shp".format(cat)
+        print("{}: {}".format(cat,len(geodf)))
+        writeGeodataToGis(geodf, fileDir)
+    
+if __name__=='__main__':
+    main2()
     
         
 

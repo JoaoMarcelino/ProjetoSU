@@ -2,16 +2,12 @@ import json
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-import scipy
-import shapely
 import matplotlib.pyplot as plt
 import os
 from tqdm import tqdm
-from shapely.geometry import MultiPoint,Point,Polygon,MultiPoint,MultiPolygon
+from shapely.geometry import *
 from shapely.ops import nearest_points
-
-from travelTimes import writeGeoDFToGis
-
+from utils import *
 
 def get_number_pois(file, cluster, type):
     clusters = gpd.read_file(file)

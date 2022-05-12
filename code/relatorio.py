@@ -1,47 +1,14 @@
+import pandas as pd
 import geopandas as gpd
-import shapely
+from shapely.geometry import *
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
-
-def writeGeodataToGis(geodf,targetFile,crs="EPSG:3857"):
-    if len(geodf)==0:
-        return 
-    os.makedirs(os.path.dirname(targetFile), exist_ok=True)
-    geodf=geodf.to_crs(crs)
-    geodf.to_file(targetFile, driver='ESRI Shapefile')
-
-def readGeodatafromFile(targetFile,bbox=None,crs="EPSG:3857"):
-    data=None 
-    if bbox==None:
-        data= gpd.read_file(targetFile)
-    else:
-        data= gpd.read_file(targetFile,bbox=bbox)
-
-    data=data.to_crs(crs)
-    return data
-
-def plotBaseMap():
-    #roadsFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/roads.shp"
-    #waterFile="C:/Users/franc/Desktop/SU/Tutoriais/portugal/water.shp"
-    roadsFile="../DS01 QGISintro/portugal/roads.shp"
-    waterFile="../DS01 QGISintro/portugal/water.shp"
-    bbox = (-8.44896,40.17894,-8.38804,40.22520)
-    bbox1=(-942000.6,4891166.6,-933027.4,4900545.5)
-    crs="EPSG:3857"
-    #crs="EPSG:4326"
-    roads = readGeodatafromFile(roadsFile,bbox,crs)
-    water=readGeodatafromFile(waterFile,bbox,crs)
-
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal')
-    base=roads.plot(ax=ax,color='purple', edgecolor='purple',alpha=0.2)
-    water.plot(ax=ax,color='yellowgreen', edgecolor='yellowgreen',alpha=0.2)
-    ax.set_xlim(bbox1[0],bbox1[2])
-    ax.set_ylim(bbox1[1],bbox1[3])
-    return ax
-
+import os
+import requests
+import json
+from utils import *
 
 def score():
 
@@ -155,18 +122,18 @@ def main():
         data=readGeodatafromFile("./datasets/pois/{}/points/points.shp".format(name),bbox,crs)
         print("{} {}".format(name,len(data)))
     
-
+    """
     buildings=readGeodatafromFile("./datasets/buildings/Coimbra/comercio/comercio.shp",bbox1,crs)
     axis=plotBaseMap()
-    buildings.plot(ax=axis, color='coral', edgecolor='coral',alpha=0.5,legend=True,label='Commerce Zone Building')
-    clusters.plot(ax=axis, marker="*", markersize=150,color="Black",label='Centroid')
+    buildings.plot(ax=axis, color='coral', edgecolor='coral',alpha=0.6,legend=True,label='Commerce Zone Building')
+    #clusters.plot(ax=axis, marker="*", markersize=150,color="Black",label='Centroid')
     LegendElement = [
-        mlines.Line2D([], [], color='black', marker='*', linestyle='None',markersize=10, label='Centroid'),
+        
         mpatches.Patch(facecolor='coral', edgecolor='coral', label='Commerce Zone Building')]
     axis.legend(handles = LegendElement, loc='upper right')
     plt.show()
     
-
+    """
     stops=readGeodatafromFile("./datasets/bus/stops.shp",bbox,crs)
     axis=plotBaseMap()
     stops.plot(ax=axis,marker="^", color='blue', edgecolor='blue',label='Bus Stop',markersize=10)
@@ -174,13 +141,46 @@ def main():
     plt.show()
     
     print(len(stops))
-    """
+    
     travelTimes=readGeodatafromFile("./datasets/buildings/travelTimes/buildings.shp",bbox1,crs)
     travelTimes=travelTimes.loc[travelTimes['time']<10]
     axis=plotBaseMap()
     travelTimes.plot(column='time', ax=axis, cmap='afmhot',legend=True,alpha=0.6)
     plt.legend()
     plt.show()
+    """
+
+def stopsToGeodataframe():
+    bbox=(-9.50152,38.84014,-9.06988,38.67876)
+    bbox1=(-1057675,4675615,-1009567,4698915) #LX swag
+
+    crs="EPSG:3857"
+    crs1="EPSG:4326"
+
+    newBusDir="./datasets/bus/Lisboa/stops.shp"
+    
+    overpass_url = "http://overpass-api.de/api/interpreter"
+    overpass_query = """
+    [out:json];
+    node
+    [highway=bus_stop]
+    ({},{},{},{});
+    out;
+    """.format(bbox[3],bbox[0],bbox[1],bbox[2])
+    response = requests.get(overpass_url, 
+                            params={'data': overpass_query})
+    data = response.json()
+
+    dicti={"geometry":[],"id":[]}
+    for i,element in enumerate(data['elements']):
+        x=element['lon']
+        y=element['lat']
+        point=Point(x,y)
+        dicti['geometry']=dicti.get('geometry',[])+[point]
+        dicti['id']=dicti.get('id',[])+[i]
+        
+    gdf=gpd.GeoDataFrame(data=dicti,crs=crs1)
+    writeGeodataToGis(gdf, newBusDir,crs=crs)
 
 if __name__=="__main__":
-    score()
+    pass
