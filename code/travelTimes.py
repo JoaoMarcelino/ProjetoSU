@@ -174,44 +174,72 @@ def getBuildingsByType():
     #print(squares)
     writeGeoDFToGis(squares, score_file)
 
-def main():
+def getLisboaSquaresInfo(areaBbox,squareWidth):
     bbox,bbox1=getUsualBbox()
     crs,crs1=getUsualCRS()
     neighborsNumber=3
-    gmaps = googlemaps.Client(key=getKeyFromFile("./keys.txt"))
-    #amadora=(-1028025.5,4684553.5,-1024641.3,4687879.2)
-    #alvalade=(-1019164,4683422,-1016834,4687388)
-    #squares=getSquaresFromBounds([amadora,alvalade], 100, crs)
-    #print(len(squares))
-
-    lisboaReduzida=(-1048057,4677425,-1012800,4690708)
-    points=getPointsFromGridSearch(lisboaReduzida, 1000, crs)
-    print(len(points))
     
-    #ax=plotBaseMap("../Dados/BaseLayer/roads.shp", "../Dados/BaseLayer/water.shp", bbox, bbox1, crs)
-    #squares.plot(ax=ax,alpha=0.3)
-    #points.plot(ax=ax,alpha=0.3)
-    #plt.show()
-    categorias=taxonomy().keys()
-    print(categorias)
-    
-    for categoria in tqdm(list(categorias)):
-        clusters=readGeodatafromFile("./datasets/facebookPOIS/clusters/clusters{}.shp".format(categoria),crs=crs)
-        for i in tqdm(range(len(points))):
-            neighbors=getNNearestPoints(points.loc[i,'geometry'], clusters, neighborsNumber)
-            for k,neig in enumerate(neighbors):
-                name="{}{}".format(categoria,k)
-                points.at[i,name]=neig.iloc[0]['clusterID']
-                 
+    points=getPointsFromGridSearch(areaBbox, squareWidth, crs)
     stops=readGeodatafromFile("./datasets/bus/Lisboa/stops.shp",crs=crs)
-    for i in tqdm(range(len(points))):
-            neighbors=getNNearestPoints(points.loc[i,'geometry'], stops, 1)
-            for k,neig in enumerate(neighbors):
-                name="stop{}".format(k)
-                points.at[i,name]=neig.iloc[0]['id']
     
+    
+    categorias=taxonomy().keys()
+    print(len(points))
+    print(len(stops))
+    print(categorias)
+    print(stops.head())
+
+    for i in tqdm(range(len(points))):
+        nearestStop=getNNearestPoints(points.loc[i,'geometry'], stops, 1)[0]
+        points.at[i,'stop']=nearestStop.iloc[0]['id']
+        busLocation=nearestStop.iloc[0]['geometry']
+        for categoria in list(categorias):
+            clusters=readGeodatafromFile("./datasets/facebookPOIS/clusters/clusters{}.shp".format(categoria),crs=crs)
+            neighbors=getNNearestPoints(busLocation, clusters, neighborsNumber)
+            for k,neig in enumerate(neighbors):
+                name="{}{}ID".format(categoria,k)
+                points.at[i,name]=neig.iloc[0]['clusterID']
+
+             
     print(points.head())
-    writeGeodataToGis(points, "./datasets/facebookPOIS/richPOIS/rishPOIS.shp",crs=crs)
+    writeGeodataToGis(points, "./datasets/facebookPOIS/richPOIS/richPOIS.shp",crs=crs)
+
+
+def calculateScore(points,nPointsCat,stops,clusters):
+    gmaps = googlemaps.Client(key=getKeyFromFile("./keys.txt"))
+
+    for i in tqdm(range(len(points))):
+        pointPos=points.loc[i,'geometry'].centroid
+        busPos=stops.loc[stops['id']==points.loc[i,'stop'],'geometry']
+        distance,time=getRoute(gmaps, (pointPos.y,pointPos.x), (busPos.y,busPos.x))
+        points.at[i,'stop']=time
+
+        for cat in list(clusters.keys()):
+            for k in range(nPointsCat):
+                name="{}{}ID".format(cat,k)[0:10]
+                clustersCat=clusters[cat]
+                clusterPos=clustersCat.loc[clustersCat['clusterID']==points.loc[i,name],'geometry']
+                distance,time=getRoute(gmaps, (pointPos.y,pointPos.x), (clusterPos.y,clusterPos.x))
+                points.at[i,name]=time
+    writeGeodataToGis(points, "./datasets/facebookPOIS/richPOIS/richerPOIS.shp",crs=getUsualCRS()[0])
+
+def main():
+    bbox,bbox1=getUsualBbox()
+    crs,crs1=getUsualCRS()
+    neighborsNumber=2
+    gmaps = googlemaps.Client(key=getKeyFromFile("./keys.txt"))
+
+    bboxLisboa=(-1036329,4677425,-1012800,4694409)
+    squareWidth=500
+
+    #getLisboaSquaresInfo(bboxLisboa, squareWidth)
+    #points=readGeodatafromFile('./datasets/FacebookPOIS/richPOIS/richPOIS.shp',crs=crs1)
+    #stops=readGeodatafromFile("./datasets/bus/Lisboa/stops.shp",crs=crs1)
+    #clusters={}
+    #for cat in list(taxonomy().keys()):
+    #        clusters[cat]=readGeodatafromFile("./datasets/facebookPOIS/clusters/clusters{}.shp".format(cat),crs=crs1) 
+    #calculateScore(points,3,stops,clusters)
+
 
 if __name__=="__main__":
     #squares_Type = ["comercio", "educacao"]#, "infrasestrutura", "lazer", "saude"]

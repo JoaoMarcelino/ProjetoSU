@@ -150,7 +150,7 @@ def getKeyFromFile(keyDir):
     return key
 
 def getRoute(googleClient,pointA,pointB,mode='driving'):
-    result = gmaps.distance_matrix(pointA, pointB, mode=mode)
+    result = googleClient.distance_matrix(pointA, pointB, mode=mode)
     distance=result['rows'][0]['elements'][0]['distance']['value']
     time=result['rows'][0]['elements'][0]['duration']['value']
     return distance,time
