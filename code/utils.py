@@ -1,14 +1,17 @@
 import base64
 import geopandas as gpd
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import os
 from pip import main
 from shapely.geometry import *
 from shapely.ops import nearest_points
 import config
-from http.client import HTTPSConnection
 import requests
-from base64 import b64encode
+import urllib
+import json
+import base64
 from pyproj import Proj, transform
 
 def reorderDataframeIndex(df):
@@ -188,22 +191,91 @@ def convertPointToDegrees(point):
 
 def auth_idealista():
 
-    #code = b64encode(bytes(f"{config.API_KEY}:{config.API_SECRET}", "utf-8")).decode("ascii")
-    code = base64(f"{config.API_KEY}:{config.API_SECRET}")
-    url = 'api.idealista.com/oauth/token'
+    url = "https://api.idealista.com/oauth/token"    
+    apikey= config.API_KEY #sent by idealista
+    secret= config.API_SECRET #sent by idealista
 
-    c = HTTPSConnection(url)
+    message = apikey + ":" + secret
+    auth = "Basic " + base64.b64encode(message.encode("ascii")).decode("ascii")
 
-    headers = { 'Authorization' : 'Basic %s' %  code, 'grant_type':'client_credentials&scope=read'}
-    c.request('GET', '/', headers=headers)
+    headers_dic = {"Authorization" : auth, 
+                "Content-Type" : "application/x-www-form-urlencoded;charset=UTF-8"}
 
-    res = c.getresponse()
-    print(res)
-    data = res.read()  
+    params_dic = {"grant_type" : "client_credentials",
+                "scope" : "read"}
 
-    #r = requests.get('https://api.idealista.com/oauth/token', auth=('Authorization', f"Basic {code}"))
-    #print(r.text)
+
+
+    response = requests.post("https://api.idealista.com/oauth/token", 
+                    headers = headers_dic, 
+                    params = params_dic)
+
+    response = json.loads(response.text)
+    access_token = response["access_token"]
+
+    return access_token
+
+def get_houses_idealista(token, url):
+    
+    headers = {'Content-Type': 'Content-Type: multipart/form-data;', 'Authorization' : 'Bearer ' + token}
+    content = requests.post(url, headers = headers)
+    print(content)
+    result = json.loads(content.text)
+    return result
+
+def search_houses_idealista(center, distance, iterations):
+
+    idealista_file='./datasets/housing/idealista.shp'
+
+    country = 'pt' #values: es, it, pt
+    locale = 'pt' #values: es, it, pt, en, ca
+    language = 'pt' #
+    max_items = '50'
+    operation = 'sale' 
+    property_type = 'homes'
+    order = 'priceDown' 
+    sort = 'desc'
+    bankOffer = 'false'
+
+    center = f"{center[0]},{center[1]}"
+
+    df_tot = gpd.GeoDataFrame()
+
+    for i in range(1,iterations):
+        url = ('https://api.idealista.com/3.5/'+country+'/search?operation='+operation+#"&locale="+locale+
+            '&maxItems='+max_items+
+            '&order='+order+
+            '&center='+center+
+            '&distance='+distance+
+            '&propertyType='+property_type+
+            '&sort='+sort+ 
+            '&numPage=%s'+
+            '&language='+language) %(i)  
+        a = get_houses_idealista(auth_idealista(), url)
+        #print(len(a['elementList']))
+
+        for i, house in enumerate(a['elementList']):
+            lat = house['latitude']
+            lon = house['longitude']
+            
+            house.pop('parkingSpace', None)
+            house.pop('detailedType', None)
+            house.pop('labels', None)
+
+            house['geometry'] = Point(lon, lat)
+
+            df = gpd.GeoDataFrame(house, crs="EPSG:3857")
+            df_tot = pd.concat([df_tot,df])
+
+    #print(df_tot)
+    writeGeodataToGis(df_tot, idealista_file)
+    df_tot = df_tot.reset_index()
 
 
 if __name__ == "__main__":
-    auth_idealista()
+    #at = auth_idealista()
+    #print(at)
+    Lisbon= np.array([38.8076, 38.6952, -9.0929, -9.2694])
+    center= (np.average(Lisbon[0:2]),np.average(Lisbon[2:4]))
+    distance = '30000'
+    search_houses_idealista(center, distance, 2)
