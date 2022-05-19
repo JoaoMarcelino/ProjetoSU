@@ -1,8 +1,14 @@
+import base64
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import os
+from pip import main
 from shapely.geometry import *
 from shapely.ops import nearest_points
+import config
+from http.client import HTTPSConnection
+import requests
+from base64 import b64encode
 
 def reorderDataframeIndex(df):
     df=df.reset_index()
@@ -154,3 +160,25 @@ def getRoute(googleClient,pointA,pointB,mode='driving'):
     distance=result['rows'][0]['elements'][0]['distance']['value']
     time=result['rows'][0]['elements'][0]['duration']['value']
     return distance,time
+
+
+def auth_idealista():
+
+    #code = b64encode(bytes(f"{config.API_KEY}:{config.API_SECRET}", "utf-8")).decode("ascii")
+    code = base64(f"{config.API_KEY}:{config.API_SECRET}")
+    url = 'api.idealista.com/oauth/token'
+
+    headers = { 'Authorization' : 'Basic %s' %  code, 'grant_type':'client_credentials&scope=read'}
+    #c = HTTPSConnection(url)
+    #c.request('GET', '/', headers=headers)
+
+    #res = c.getresponse()
+    #print(res)
+    #data = res.read()  
+
+    r = requests.get('https://api.idealista.com/oauth/token', auth=('Authorization', f"Basic {code}"))
+    print(r.text)
+
+
+if __name__ == "__main__":
+    auth_idealista()
