@@ -9,6 +9,7 @@ import config
 from http.client import HTTPSConnection
 import requests
 from base64 import b64encode
+from pyproj import Proj, transform
 
 def reorderDataframeIndex(df):
     df=df.reset_index()
@@ -76,19 +77,6 @@ def taxonomy():
             }
     return dicti
 
-"""
-#Old Taxonomy
-def taxonomy():
-    dicti={}
-    dicti['infraestrutura']=['police','post_box','recycling','post_office','parking','telephone','post_office','fire_station','bank','fuel','information','toilet']
-    dicti['saude']=['pharmacy','hospital']
-    dicti['comercio']=['restaurant','cafe','pub','supermarket','fast_food','atm','bakery']
-    dicti['educacao']=['school','library','kindergarten']
-    dicti['lazer']=['theatre','museum','cinema','attraction','nightclub']
-
-    return dicti
-"""
-
 def getNearestGeometry(point, gdf, value_column="geometry"):
     """Find the nearest point and return the corresponding value from specified value column."""
     # Create an union of the other GeoDataFrame's geometries:
@@ -109,16 +97,16 @@ def getNNearestPoints(point,gdf,n):
     return visited
     
 def getUsualBbox():
-    bbox=(-9.50152,38.84014,-9.06988,38.67876)
-    bbox1=(-1057675,4675615,-1009567,4698915) #LX swag
+    bboxDegrees=(-9.50152,38.84014,-9.06988,38.67876)
+    bboxEuclidean=(-1057675,4675615,-1009567,4698915) #LX swag
     
-    return bbox,bbox1
+    return bboxEuclidean,bboxDegrees
 
 def getUsualCRS():
-    crs="EPSG:3857"
-    crs1="EPSG:4326"
+    crsEuclidean="EPSG:3857"
+    crsDegrees="EPSG:4326"
 
-    return crs,crs1
+    return crsEuclidean,crsDegrees
 
 
 def getSquaresFromBounds(boundsList,squareWidth,crs):
@@ -162,22 +150,59 @@ def getRoute(googleClient,pointA,pointB,mode='driving'):
     return distance,time
 
 
+def loadClusters(folderDir,crs,categories):
+    clusters={}
+    pois={}
+    for cat in categories:
+        clusters[cat]=readGeodatafromFile("{}clusters{}.shp".format(folderDir,cat),crs=crs)
+        pois[cat]=readGeodatafromFile("{}{}.shp".format(folderDir,cat),crs=crs)
+
+    return pois,clusters
+
+def getCellWithValue(geoDataFrame,columnOfValue,value,columnToSelect):
+    value=geoDataFrame.loc[geoDataFrame[columnOfValue]==value,columnToSelect].tolist()[0]
+    return value
+
+
+class bbox:
+    def __init__(self,north,south,east,west):
+        self.north=north
+        self.south=south
+        self.east=east
+        self.west=west
+
+    def convertToXY(self):
+        inProj  = Proj("EPSG:4326")
+        outProj = Proj("EPSG:3857")
+        pointA=transform(inProj,outProj,self.north,self.west)
+        pointB=transform(inProj,outProj,self.south,self.east)
+        print((pointA[1],pointB[1],pointA[0],pointB[0]))
+        return bbox(pointA[1],pointB[1],pointA[0],pointB[0])
+
+def convertPointToDegrees(point):
+    outProj  = Proj("EPSG:4326")
+    inProj = Proj("EPSG:3857")
+    pointB=transform(inProj,outProj,point[0],point[1])
+    return pointB[1],pointB[0]
+
+
 def auth_idealista():
 
     #code = b64encode(bytes(f"{config.API_KEY}:{config.API_SECRET}", "utf-8")).decode("ascii")
     code = base64(f"{config.API_KEY}:{config.API_SECRET}")
     url = 'api.idealista.com/oauth/token'
 
+    c = HTTPSConnection(url)
+
     headers = { 'Authorization' : 'Basic %s' %  code, 'grant_type':'client_credentials&scope=read'}
-    #c = HTTPSConnection(url)
-    #c.request('GET', '/', headers=headers)
+    c.request('GET', '/', headers=headers)
 
-    #res = c.getresponse()
-    #print(res)
-    #data = res.read()  
+    res = c.getresponse()
+    print(res)
+    data = res.read()  
 
-    r = requests.get('https://api.idealista.com/oauth/token', auth=('Authorization', f"Basic {code}"))
-    print(r.text)
+    #r = requests.get('https://api.idealista.com/oauth/token', auth=('Authorization', f"Basic {code}"))
+    #print(r.text)
 
 
 if __name__ == "__main__":

@@ -155,3 +155,5 @@ datasets/facebookPOIS/pois/pois.*
 
 
 config.py
+keys.txt
+cache/*
