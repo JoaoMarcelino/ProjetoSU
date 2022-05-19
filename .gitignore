@@ -152,3 +152,5 @@ cython_debug/
 #.idea/
 datasets/buildings/*
 datasets/facebookPOIS/pois/pois.*
+keys.txt
+cache/*
