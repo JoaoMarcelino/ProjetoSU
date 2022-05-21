@@ -154,3 +154,9 @@ datasets/buildings/*
 datasets/facebookPOIS/pois/pois.*
 keys.txt
 cache/*
+datasets/facebookPOIS/facebookplaces.csv
+datasets/facebookPOIS/allpois.dbf
+datasets/facebookPOIS/allpois.cpg
+datasets/facebookPOIS/allpois.prj
+datasets/facebookPOIS/allpois.shp
+datasets/facebookPOIS/allpois.shx
