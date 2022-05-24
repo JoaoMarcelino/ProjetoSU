@@ -204,12 +204,9 @@ def auth_idealista():
     params_dic = {"grant_type" : "client_credentials",
                 "scope" : "read"}
 
-
-
     response = requests.post("https://api.idealista.com/oauth/token", 
                     headers = headers_dic, 
                     params = params_dic)
-
     response = json.loads(response.text)
     access_token = response["access_token"]
 
@@ -223,7 +220,7 @@ def get_houses_idealista(token, url):
     result = json.loads(content.text)
     return result
 
-def search_houses_idealista(center, distance, iterations):
+def search_houses_idealista(at, center, distance, iterations):
 
     idealista_file='./datasets/housing/idealista.shp'
 
@@ -251,7 +248,7 @@ def search_houses_idealista(center, distance, iterations):
             '&sort='+sort+ 
             '&numPage=%s'+
             '&language='+language) %(i)  
-        a = get_houses_idealista(auth_idealista(), url)
+        a = get_houses_idealista(at, url)
         #print(len(a['elementList']))
 
         for i, house in enumerate(a['elementList']):
@@ -273,9 +270,9 @@ def search_houses_idealista(center, distance, iterations):
 
 
 if __name__ == "__main__":
-    #at = auth_idealista()
-    #print(at)
+    at = auth_idealista()
+    print(at)
     Lisbon= np.array([38.8076, 38.6952, -9.0929, -9.2694])
     center= (np.average(Lisbon[0:2]),np.average(Lisbon[2:4]))
     distance = '30000'
-    search_houses_idealista(center, distance, 2)
+    search_houses_idealista(at, center, distance, 20)
